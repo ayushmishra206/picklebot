@@ -6,10 +6,16 @@
   "private": true,
   "scripts": {
     "start": "node src/index.js",
+    "start:wa": "node src/index.baileys.js",
     "dev": "node --watch src/index.js",
+    "dev:wa": "node --watch src/index.baileys.js",
     "test": "node --test"
   },
   "engines": {
     "node": ">=22"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "^7.0.0-rc13",
+    "qrcode-terminal": "^0.12.0"
   }
 }
