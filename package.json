@@ -1,0 +1,15 @@
+{
+  "name": "picklepilot",
+  "version": "0.1.0",
+  "description": "WhatsApp-first pickleball session planning and settlement bot.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
