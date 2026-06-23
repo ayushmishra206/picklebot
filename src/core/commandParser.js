@@ -1,5 +1,16 @@
-const RSVP_IN = new Set(["in", "+1", "yes", "join"]);
-const RSVP_OUT = new Set(["out", "-1", "no"]);
+const RSVP_IN = new Set(["in", "+1", "yes", "join", "down"]);
+const RSVP_OUT = new Set(["out", "-1", "no", "drop"]);
+const CONDITIONAL_MARKERS = [
+  " if ",
+  " agar ",
+  " agaar ",
+  " agr ",
+  " nahi hui",
+  " jagah hai",
+  " space is",
+  " still available",
+  " possible"
+];
 
 export function parseCommand(rawText) {
   const text = rawText.trim();
@@ -9,26 +20,49 @@ export function parseCommand(rawText) {
     return { type: "empty" };
   }
 
+  if (text.startsWith("!")) {
+    return parseBangCommand(text);
+  }
+
+  const naturalGame = parseNaturalGame(text, lower);
+  if (naturalGame) {
+    return naturalGame;
+  }
+
+  const naturalCost = parseNaturalCost(lower);
+  if (naturalCost) {
+    return naturalCost;
+  }
+
+  if (isPaymentDone(lower)) {
+    return parsePaymentDone(text);
+  }
+
+  const naturalRsvp = parseNaturalRsvp(text, lower);
+  if (naturalRsvp) {
+    return naturalRsvp;
+  }
+
   if (RSVP_IN.has(lower)) {
-    return { type: "rsvp", state: "interested" };
+    return { type: "rsvp", state: "confirmed", guestCount: 0 };
   }
 
   if (RSVP_OUT.has(lower)) {
-    return { type: "rsvp", state: "out" };
+    return { type: "rsvp", state: "out", guestCount: 0 };
   }
 
   if (lower === "confirm") {
-    return { type: "rsvp", state: "confirmed" };
+    return { type: "rsvp", state: "confirmed", guestCount: 0 };
   }
 
   if (lower === "drop") {
-    return { type: "rsvp", state: "out" };
+    return { type: "rsvp", state: "out", guestCount: 0 };
   }
 
-  if (!text.startsWith("!")) {
-    return { type: "unknown" };
-  }
+  return { type: "unknown" };
+}
 
+function parseBangCommand(text) {
   const parts = text.split(/\s+/);
   const command = parts[0].toLowerCase();
 
@@ -93,6 +127,68 @@ function parseGame(parts) {
   return { type: "game", startTime, courtCount };
 }
 
+function parseNaturalGame(text, lower) {
+  if (lower.includes("community game") || lower.includes("dupr")) {
+    return null;
+  }
+
+  const looksLikeGamePrompt = [
+    /\bgame\s+(today|aaj|evening)\b/i,
+    /^\s*(today|aaj)\s*\?*\.?\s*$/i,
+    /\bany\s*game\s+(today|aaj)\b/i,
+    /\banyone\s+(playing\s+)?(today|aaj)\b/i,
+    /\bwho\s+is\s+in\s+for\s+(today|aaj)\b/i,
+    /\bkhelna\s+hai\s+(aaj|shaam|evening)\b/i,
+    /\b(aaj|shaam)\s+khelna\s+hai\b/i,
+    /\bkoi\s+(today|aaj)\b/i
+  ].some((pattern) => pattern.test(text));
+
+  if (!looksLikeGamePrompt) {
+    return null;
+  }
+
+  return {
+    type: "game",
+    startTime: extractTimeWindow(text) ?? "today TBD",
+    courtCount: extractCourtCount(text) ?? 1,
+    inferred: true
+  };
+}
+
+function parseNaturalCost(lower) {
+  const match = lower.match(/\b(\d+(?:\.\d+)?)\s*(?:\/-\s*)?(?:\/\s*)?(?:pp|per\s*person|person|each)\b/i);
+  if (!match) {
+    return null;
+  }
+
+  return {
+    type: "per_person_cost",
+    amountPerPerson: Number.parseFloat(match[1]),
+    label: "court"
+  };
+}
+
+function parseNaturalRsvp(text, lower) {
+  const inMessage = isInMessage(lower);
+  const conditional = isConditional(lower);
+  const outMessage = isOutMessage(lower);
+
+  if (outMessage && !(inMessage && conditional)) {
+    return { type: "rsvp", state: "out", guestCount: 0 };
+  }
+
+  if (!inMessage) {
+    return null;
+  }
+
+  return {
+    type: "rsvp",
+    state: conditional ? "interested" : "confirmed",
+    condition: conditional ? extractCondition(text) : undefined,
+    guestCount: extractGuestCount(lower)
+  };
+}
+
 function parsePlan(parts) {
   let mode = "round-robin";
   const modeIndex = parts.findIndex((part) => part.toLowerCase() === "mode");
@@ -154,4 +250,80 @@ function parseUpi(parts) {
   }
 
   return { type: "upi", handle: parts.at(-1) };
+}
+
+function isInMessage(lower) {
+  return [
+    /\b(in|join|joining|down|yes|yess|aajaunga|aaunga|aa jaunga|aa sakta|can play|i can play|i m in|i'm in|im in|i am in)\b/i,
+    /^\+(\d+)$/,
+    /\bin\s*\+\d+\b/i,
+    /\bi\s+have\s+\d+\s+more\s+in\b/i
+  ].some((pattern) => pattern.test(lower));
+}
+
+function isOutMessage(lower) {
+  return [
+    /\bout\b/i,
+    /\bskip\b/i,
+    /\bdrop\b/i,
+    /\bnot\s+possible\b/i,
+    /\bwon'?t\s+be\s+able\b/i,
+    /\bcannot\s+(come|join|play)\b/i,
+    /\bcan't\s+(come|join|play)\b/i,
+    /\bnahi\s+(aa|a)\s*sakta\b/i,
+    /\bnahi\s+(aa|a)\s*paunga\b/i,
+    /\bmushkil\s+hai\b/i,
+    /\bnah[iy]\b/i
+  ].some((pattern) => pattern.test(lower));
+}
+
+function isConditional(lower) {
+  return CONDITIONAL_MARKERS.some((marker) => lower.includes(marker));
+}
+
+function extractCondition(text) {
+  const match = text.match(/\b(if|agar|agaar|agr)\b(.+)$/i);
+  return match ? match[0].trim() : text.trim();
+}
+
+function extractGuestCount(lower) {
+  const plusMatch = lower.match(/\bin\s*\+(\d+)\b|^\+(\d+)$/i);
+  if (plusMatch) {
+    return Number.parseInt(plusMatch[1] ?? plusMatch[2], 10);
+  }
+
+  const moreMatch = lower.match(/\bi\s+have\s+(\d+)\s+more\s+in\b/i);
+  if (moreMatch) {
+    return Number.parseInt(moreMatch[1], 10);
+  }
+
+  return 0;
+}
+
+function extractTimeWindow(text) {
+  const match = text.match(/\b(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\s*(?:-|to|se)\s*(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\b/i);
+  if (match) {
+    return `${match[1].trim()}-${match[2].trim()}`;
+  }
+
+  const singleTime = text.match(/\b(\d{1,2}(?::\d{2})?\s*(?:am|pm))\b/i);
+  return singleTime ? singleTime[1].trim() : null;
+}
+
+function extractCourtCount(text) {
+  const match = text.match(/\b(?:courts?|court)\s*(\d+)\b/i);
+  return match ? Number.parseInt(match[1], 10) : null;
+}
+
+function isPaymentDone(lower) {
+  return /\b(done|paid|sent|transfer(?:red)?)\b/i.test(lower);
+}
+
+function parsePaymentDone(text) {
+  const amount = text.match(/(?:₹|rs\.?\s*)?(\d+(?:\.\d+)?)/i);
+  return {
+    type: "payment_done",
+    amount: amount ? Number.parseFloat(amount[1]) : undefined,
+    guestCount: extractGuestCount(text.toLowerCase())
+  };
 }

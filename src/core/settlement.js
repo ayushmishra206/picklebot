@@ -11,6 +11,8 @@ export function calculateSettlement(session, playersById) {
 
   const total = session.costs.reduce((sum, cost) => sum + cost.amount, 0);
   const splitMethod = session.costs.at(-1)?.splitMethod ?? "equal";
+  const payerIds = session.costs.map((cost) => cost.paidBy);
+  const settlementPlayerIds = [...new Set([...activePlayerIds, ...payerIds])];
   const weights = splitMethod === "weighted"
     ? weightedByRounds(activePlayerIds, session.matches)
     : equalWeights(activePlayerIds);
@@ -22,15 +24,16 @@ export function calculateSettlement(session, playersById) {
     paidByPlayer.set(cost.paidBy, roundMoney((paidByPlayer.get(cost.paidBy) ?? 0) + cost.amount));
   }
 
-  const shares = activePlayerIds.map((playerId) => {
-    const owedShare = totalWeight === 0 ? 0 : roundMoney((weights.get(playerId) / totalWeight) * total);
+  const shares = settlementPlayerIds.map((playerId) => {
+    const playerWeight = weights.get(playerId) ?? 0;
+    const owedShare = totalWeight === 0 ? 0 : roundMoney((playerWeight / totalWeight) * total);
     const paid = paidByPlayer.get(playerId) ?? 0;
     return {
       playerId,
       name: playersById[playerId]?.displayName ?? playerId,
-      share: owedShare,
+      share: playerWeight === 0 ? 0 : owedShare,
       paid,
-      net: roundMoney(paid - owedShare),
+      net: roundMoney(paid - (playerWeight === 0 ? 0 : owedShare)),
       upiHandle: playersById[playerId]?.upiHandle
     };
   });

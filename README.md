@@ -11,13 +11,14 @@ npm start
 The local console adapter simulates a WhatsApp group. Type commands such as:
 
 ```text
-Ayush: !game 6pm courts 2
-Priya: in
-Rohan: +1
+Ayush: Game today 7 to 8?
+Priya: In
+Rohan: In +1
 Sara: confirm
 Ayush: !roster
 Ayush: !plan
-Ayush: !costs court 800 shuttles 400 paid Ayush
+Ayush: 200/ person tha
+Priya: Done
 Ayush: !settle
 ```
 
@@ -31,9 +32,15 @@ npm test
 
 ## Current Scope
 
-- Plain text command parsing.
+- Plain text command parsing plus common natural-language group chat patterns.
 - One active session per group.
 - Interested, confirmed, waitlisted, and out roster states.
+- Natural game prompts such as `Game today?`, `Anyone today?`, and `Khelna hai aaj?`.
+- Guest counting for messages like `In +1`.
+- Conditional RSVPs such as `In agar rain nahi hui` stay tentative with the condition visible.
+- Hinglish out phrases such as `nahi aa sakta` and `mushkil hai`.
+- Per-person cost capture for messages like `227 each`, `180PP`, and `200/ person`.
+- Payment acknowledgements from `Done`.
 - Random/round-robin and rating-balanced planning modes.
 - Fair sit-out rotation for odd / overflow player counts.
 - Equal cost splits and weighted splits by rounds played.

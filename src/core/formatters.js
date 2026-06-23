@@ -7,7 +7,8 @@ export function formatRoster(session, playersById) {
   };
 
   for (const [playerId, rsvp] of Object.entries(session.rsvps)) {
-    groups[rsvp.state]?.push(playersById[playerId]?.displayName ?? playerId);
+    const name = playersById[playerId]?.displayName ?? playerId;
+    groups[rsvp.state]?.push(rsvp.condition ? `${name} (${rsvp.condition})` : name);
   }
 
   return [
@@ -65,6 +66,13 @@ export function formatSettlement(result, session) {
       const handle = transfer.toUpiHandle ? ` (${transfer.toUpiHandle})` : "";
       lines.push(`${transfer.fromName} -> ${transfer.toName}${handle}: ₹${transfer.amount}`);
     }
+  }
+
+  const paidNames = Object.keys(session.paymentConfirmations ?? {})
+    .map((playerId) => result.shares.find((share) => share.playerId === playerId)?.name)
+    .filter(Boolean);
+  if (paidNames.length > 0) {
+    lines.push(`Marked paid: ${paidNames.join(", ")}`);
   }
 
   return lines.join("\n");
